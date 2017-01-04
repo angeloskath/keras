@@ -441,7 +441,8 @@ def generator_queue(generator, max_q_size=10,
 class Model(Container):
 
     def compile(self, optimizer, loss, metrics=None, loss_weights=None,
-                sample_weight_mode=None, **kwargs):
+                sample_weight_mode=None, equal_array_lengths=True,
+                **kwargs):
         '''Configures the model for training.
 
         # Arguments
@@ -463,6 +464,8 @@ class Model(Container):
                 If the model has multiple outputs, you can use a different
                 `sample_weight_mode` on each output by passing a
                 dictionary or a list of modes.
+            equal_array_lengths: Set to False if you want to pass inputs of
+                different lengths to the first layer.
             kwargs: when using the Theano backend, these arguments
                 are passed into K.function. Ignored for Tensorflow backend.
         '''
@@ -470,6 +473,7 @@ class Model(Container):
         self.sample_weight_mode = sample_weight_mode
         self.loss = loss
         self.loss_weights = loss_weights
+        self.equal_array_lengths = equal_array_lengths
 
         # prepare loss weights
         if loss_weights is None:
@@ -962,7 +966,8 @@ class Model(Container):
 
     def _standardize_user_data(self, x, y,
                                sample_weight=None, class_weight=None,
-                               check_batch_dim=True, batch_size=None):
+                               check_batch_dim=True, batch_size=None,
+                               equal_array_lengths=True):
         if not hasattr(self, 'optimizer'):
             raise RuntimeError('You must compile a model before '
                                'training/testing. '
@@ -991,7 +996,8 @@ class Model(Container):
         sample_weights = [standardize_weights(ref, sw, cw, mode)
                           for (ref, sw, cw, mode)
                           in zip(y, sample_weights, class_weights, self.sample_weight_modes)]
-        check_array_lengths(x, y, sample_weights)
+        if equal_array_lengths:
+            check_array_lengths(x, y, sample_weights)
         check_loss_and_target_compatibility(y, self.loss_functions, self.internal_output_shapes)
         if self.stateful and batch_size:
             if x[0].shape[0] % batch_size != 0:
@@ -1259,7 +1265,8 @@ class Model(Container):
             x, y,
             sample_weight=sample_weight,
             class_weight=class_weight,
-            check_batch_dim=True)
+            check_batch_dim=True,
+            equal_array_lengths=self.equal_array_lengths)
         if self.uses_learning_phase and not isinstance(K.learning_phase, int):
             ins = x + y + sample_weights + [1.]
         else:
@@ -1301,7 +1308,8 @@ class Model(Container):
         x, y, sample_weights = self._standardize_user_data(
             x, y,
             sample_weight=sample_weight,
-            check_batch_dim=True)
+            check_batch_dim=True,
+            equal_array_lengths=self.equal_array_lengths)
         if self.uses_learning_phase and not isinstance(K.learning_phase, int):
             ins = x + y + sample_weights + [0.]
         else:
